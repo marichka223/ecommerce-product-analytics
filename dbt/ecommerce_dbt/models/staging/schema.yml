@@ -1,0 +1,159 @@
+version: 2
+
+models:
+
+  - name: stg_clickstream_events
+    description: >
+      Staging table for clickstream events.
+      Deduplicated by payload_hash (latest by ingested_at, filename).
+      Parses JSON fields into structured columns.
+
+    columns:
+
+      - name: event_id
+        description: Original event identifier from source.
+        tests:
+          - not_null
+
+      - name: source_system
+        description: Source system that produced the event.
+
+      - name: schema_version
+        description: Schema version of the envelope.
+
+      - name: batch_id
+        description: Batch identifier from ingestion envelope.
+
+      - name: envelope_timestamp
+        description: Timestamp when the event was ingested into the system.
+
+      - name: user_id
+        description: User identifier extracted from raw payload.
+
+      - name: user_session
+        description: User session identifier.
+
+      - name: event_ts
+        description: Event timestamp from payload.
+
+      - name: event_type
+        description: Type of clickstream event.
+
+      - name: product_id
+        description: Product identifier associated with the event.
+
+      - name: category_id
+        description: Product category identifier.
+
+      - name: category_code
+        description: Product category code.
+
+      - name: brand
+        description: Product brand.
+
+      - name: price
+        description: Product price as string extracted from payload.
+
+      - name: payload_hash
+        description: Hash of raw payload used for deduplication.
+        tests:
+          - not_null
+          - unique
+
+      - name: ingested_at
+        description: Technical ingestion timestamp.
+        tests:
+          - not_null
+
+      - name: dt
+        description: Partition date from landing layer.
+
+      - name: filename
+        description: Source file name.
+
+      - name: load_id
+        description: Technical load identifier.
+
+      - name: metadata_json
+        description: Raw metadata JSON.
+
+      - name: keys_json
+        description: Raw keys JSON.
+
+      - name: raw_payload_json
+        description: Raw payload JSON.
+
+  - name: stg_stripe_events
+    description: >
+      Staging table for Stripe events.
+      Deduplicated by payload_hash (latest by ingested_at, filename).
+      Parses envelope and payload JSON fields.
+
+    columns:
+
+      - name: envelope_event_id
+        description: Event identifier from metadata envelope.
+
+      - name: source_system
+        description: Source system that produced the event.
+
+      - name: schema_version
+        description: Schema version of the envelope.
+
+      - name: batch_id
+        description: Batch identifier from ingestion envelope.
+
+      - name: envelope_timestamp
+        description: Ingestion timestamp from envelope metadata.
+
+      - name: provider_event_id
+        description: Event identifier from provider (Stripe).
+        tests:
+          - not_null
+
+      - name: api_version
+        description: Stripe API version.
+
+      - name: event_time
+        description: Event time extracted from keys JSON.
+
+      - name: user_id
+        description: User identifier extracted from keys JSON.
+
+      - name: user_session
+        description: User session identifier.
+
+      - name: provider_created_ts
+        description: Timestamp when event was created in Stripe.
+
+      - name: event_type
+        description: Stripe event type.
+
+      - name: payload_hash
+        description: Hash of raw payload used for deduplication.
+        tests:
+          - not_null
+          - unique
+
+      - name: ingested_at
+        description: Technical ingestion timestamp.
+        tests:
+          - not_null
+
+      - name: dt
+        description: Partition date from landing layer.
+
+      - name: filename
+        description: Source file name.
+
+      - name: load_id
+        description: Technical load identifier.
+
+      - name: metadata_json
+        description: Raw metadata JSON.
+
+      - name: keys_json
+        description: Raw keys JSON.
+
+      - name: raw_payload_json
+        description: Raw payload JSON.

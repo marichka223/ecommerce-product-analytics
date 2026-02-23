@@ -1,0 +1,452 @@
+version: 2
+
+models:
+  - name: stripe_payment_intents
+    description: >
+      Normalized Stripe payment intents extracted from Stripe events.
+      Grain: 1 row per payment_intent_id (deduplicated by best event payload).
+    columns:
+      - name: payment_intent_id
+        description: "Stripe payment_intent_id."
+        tests:
+          - not_null
+          - unique
+
+      - name: event_time
+        description: "Timestamp of the Stripe event in provider time."
+        tests:
+          - not_null
+
+      - name: received_ts
+        description: "Timestamp when the event was received/processed."
+        tests:
+          - not_null
+
+      - name: status
+        description: "Stripe payment intent status."
+        tests:
+          - not_null
+
+      - name: amount_gross
+        description: "Gross amount in major currency units (converted from cents)."
+        tests:
+          - not_null
+
+      - name: currency
+        description: "ISO currency code."
+        tests:
+          - not_null
+
+      - name: latest_charge_id 
+        description: "Stripe latest_charge_id linked to this payment intent."
+
+      - name: order_id
+        description: "Order id from Stripe metadata (if present)."
+
+      - name: attempt_number
+        description: "Attempt number from Stripe metadata (if present)."
+
+      - name: payment_method
+        description: "Payment method from Stripe metadata (if present)."
+
+      - name: event_type
+        description: "Stripe event type that produced the selected payload (payment_intent.*)."
+        tests:
+          - not_null
+
+      - name: provider_event_id
+        description: "Stripe event id."
+        tests:
+          - not_null
+
+      - name: user_id
+        description: "Attributed user_id from ingestion pipeline (if present)."
+
+      - name: user_session
+        description: "Attributed session id from ingestion pipeline (if present)."
+
+      - name: payment_intent_json
+        description: "Raw JSON object of the Stripe payment intent."
+
+
+  - name: stripe_charges
+    description: >
+      Normalized Stripe charges extracted from Stripe events.
+      Grain: 1 row per charge_id (deduplicated by best event payload).
+    columns:
+      - name: charge_id
+        description: "Stripe charge id."
+        tests:
+          - not_null
+          - unique
+
+      - name: event_time
+        description: "Timestamp of the charge (coalesced from event_time / provider_created_ts)."
+        tests:
+          - not_null
+
+      - name: received_ts
+        description: "Timestamp when the record was ingested/received."
+        tests:
+          - not_null
+
+      - name: status
+        description: "Charge status from Stripe payload."
+        tests:
+          - not_null
+
+      - name: amount_gross
+        description: "Gross amount in major currency units (converted from cents)."
+        tests:
+          - not_null
+
+      - name: currency
+        description: "ISO currency code."
+        tests:
+          - not_null
+
+      - name: fee
+        description: "Stripe fee in major currency units (if available in payload)."
+
+      - name: amount_net
+        description: "Net amount after fees in major currency units (if available in payload)."
+
+      - name: payment_intent_id
+        description: "Stripe payment_intent id this charge belongs to."
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stripe_payment_intents')
+              field: payment_intent_id
+
+      - name: event_type
+        description: "Stripe event type that produced the selected payload (charge.*)."
+        tests:
+          - not_null
+
+      - name: provider_event_id
+        description: "Stripe event id."
+        tests:
+          - not_null
+
+      - name: charge_json
+        description: "Raw JSON object of the Stripe charge."
+
+  - name: stripe_refunds
+    description: >
+      Normalized Stripe refunds extracted from Stripe events.
+      Grain: 1 row per refund_id (deduplicated).
+    columns:
+      - name: refund_id
+        description: "Stripe refund id."
+        tests:
+          - not_null
+          - unique
+
+      - name: event_time
+        description: "Timestamp of the refund (coalesced from event_time / provider_created_ts)."
+        tests:
+          - not_null
+
+      - name: received_ts
+        description: "Timestamp when the record was ingested/received."
+        tests:
+          - not_null
+
+      - name: status
+        description: "Refund status from Stripe payload."
+        tests:
+          - not_null
+
+      - name: amount_refunded
+        description: "Refunded amount in major currency units (converted from cents)."
+        tests:
+          - not_null
+
+      - name: currency
+        description: "ISO currency code."
+        tests:
+          - not_null
+
+      - name: reason
+        description: "Refund reason from Stripe payload (nullable)."
+
+      - name: charge_id
+        description: "Stripe charge id that was refunded."
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stripe_charges')
+                field: charge_id
+
+      - name: order_id
+        description: "Order id from Stripe metadata (if present)."
+
+      - name: event_type
+        description: "Stripe event type that produced the selected payload (refund.*)."
+        tests:
+          - not_null
+
+      - name: provider_event_id
+        description: "Stripe event id."
+        tests:
+          - not_null
+
+      - name: refund_json
+        description: "Raw JSON object of the Stripe refund."
+
+  
+  
+  - name: stripe_events_clean
+    description: >
+      Cleaned & deduplicated Stripe events feed.
+      Grain: 1 row per logical event (event_pk).
+      event_pk is derived from provider_event_id/envelope_event_id/payload_hash.
+    columns:
+      - name: event_pk
+        description: "Canonical event primary key."
+        tests:
+          - not_null
+          - unique
+
+      - name: event_time
+        description: "Business time when the event occurred (event_time or provider_created_ts)."
+        tests:
+          - not_null
+
+      - name: event_date
+        description: "Date derived from event_time."
+        tests:
+          - not_null
+
+      - name: received_ts
+        description: "Ingestion/received timestamp (ingested_at or envelope_timestamp)."
+        tests:
+          - not_null
+
+      - name: event_type
+        description: "Lowercased Stripe event type."
+        tests:
+          - not_null
+
+      - name: user_id
+        description: "User identifier if available from ingestion pipeline."
+
+      - name: user_session
+        description: "Session identifier if available from ingestion pipeline."
+
+      - name: provider_event_id
+        description: "Stripe event id (preferred identifier)."
+
+      - name: envelope_event_id
+        description: "Upstream envelope event id (fallback identifier)."
+
+      - name: api_version
+        description: "Stripe API version (if present)."
+
+      - name: source_system
+        description: "Source system producing the envelope (if present)."
+
+      - name: schema_version
+        description: "Schema version of the ingested event (if present)."
+
+      - name: batch_id
+        description: "Ingestion batch identifier (if present)."
+
+      - name: dt
+        description: "Partition/date field from ingestion (if present)."
+
+      - name: filename
+        description: "Raw file name the record came from (if present)."
+
+      - name: ingested_at
+        description: "Ingestion timestamp from staging."
+
+      - name: payload_hash
+        description: "Hash of raw payload used as ultimate fallback for event_pk."
+
+      - name: raw_payload_json
+        description: "Raw Stripe event payload JSON."
+        tests:
+          - not_null
+
+  - name: stripe_charges_invalid
+    description: "Rejected Stripe charge events (data quality audit output). Expect 0 rows."
+    columns:
+      - name: provider_event_id
+      - name: charge_id
+      - name: rejection_reason
+
+    
+  - name: stripe_payment_intents_invalid
+    description: "Rejected Stripe payment_intent events (data quality audit output). Expect 0 rows."
+    columns:
+      - name: provider_event_id
+        description: "Stripe event id from the provider."
+
+      - name: event_type
+        description: "Stripe event type (payment_intent.*)."
+
+      - name: event_ts
+        description: "Business timestamp of the event."
+
+      - name: received_ts
+        description: "Ingestion timestamp."
+
+      - name: payment_intent_id
+        description: "Parsed payment_intent_id (null for rejected rows)."
+
+      - name: rejection_reason
+        description: "Reason why the record was rejected (e.g. payment_intent_id is null)."
+
+      - name: raw_payload_json
+        description: "Raw Stripe payload for debugging."
+
+
+  - name: bridge_payment_event_candidates
+    description: >
+      Candidate matches between payment_intent and clickstream events.
+      Grain: multiple candidate rows per payment_intent_id × event_id (scored matches).
+    columns:
+      - name: payment_intent_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('fct_payments')
+              field: payment_intent_id
+
+      - name: event_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('fct_events')
+              field: event_pk
+
+      - name: match_score
+        tests:
+          - not_null
+
+      - name: matched_type
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['user_session', 'user_id']
+
+      - name: time_diff_seconds
+
+  - name: map_payment_to_event
+    description: >
+      Deterministic mapping of payment_intent_id to a single best-matched clickstream event.
+      Grain: 1 row per payment_intent_id.
+
+    columns:
+      - name: payment_intent_id
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              to: ref('fct_payments')
+              field: payment_intent_id
+
+      - name: event_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('fct_events')
+              field: event_pk
+
+      - name: matched_type
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['user_session', 'user_id']
+
+      - name: match_score
+        tests:
+          - not_null
+  
+
+  - name: map_payment_to_session
+    description: >
+      Mapping of payment_intent_id to canonical session.
+      Grain: 1 row per payment_intent_id.
+
+    columns:
+      - name: payment_intent_id
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              to: ref('fct_payments')
+              field: payment_intent_id
+
+      - name: session_id
+        tests:
+          - relationships:
+              to: ref('int_sessions_base')
+              field: session_id
+
+      - name: is_session_found
+        tests:
+          - not_null
+
+      - name: is_user_consistent
+
+  - name: int_sessions
+    description: >
+      Intermediate session aggregation built from fct_events.
+      Grain: 1 row per session_id.
+      Used as base for fct_sessions enrichment.
+
+    columns:
+      - name: session_id
+        tests:
+          - not_null
+          - unique
+
+      - name: user_id
+        tests:
+          - not_null
+
+      - name: session_start_at
+        tests:
+          - not_null
+
+      - name: session_end_at
+        tests:
+          - not_null
+
+      - name: session_duration_seconds
+
+      - name: session_date
+        tests:
+          - not_null
+
+      - name: events_count
+        tests:
+          - not_null
+
+      - name: distinct_event_types_count
+        tests:
+          - not_null
+
+      - name: is_bounce
+        tests:
+          - not_null
+
+      - name: has_product_view
+        tests:
+          - not_null
+
+      - name: has_add_to_cart
+        tests:
+          - not_null
+
+      - name: has_purchase_event
+        tests:
+          - not_null
+
+      - name: last_received_ts
+        tests:
+          - not_null

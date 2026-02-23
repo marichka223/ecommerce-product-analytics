@@ -1,0 +1,283 @@
+version: 2
+
+models:
+  - name: metrics_session_funnel_daily
+    description: >
+      Daily session funnel metrics.
+      Grain: 1 row per session_date.
+      Aggregates session counts and conversion rates.
+
+    columns:
+      - name: session_date
+        description: "Session date."
+        tests:
+          - not_null
+          - unique
+
+      - name: sessions
+        description: "Total number of sessions."
+        tests:
+          - not_null
+
+      - name: sessions_with_view
+        tests:
+          - not_null
+
+      - name: sessions_with_cart
+        tests:
+          - not_null
+
+      - name: sessions_with_purchase_event
+        tests:
+          - not_null
+
+      - name: sessions_with_payment
+        tests:
+          - not_null
+
+      - name: session_to_view_cr
+      - name: view_to_cart_cr
+      - name: cart_to_purchase_event_cr
+      - name: purchase_event_to_payment_cr
+      - name: view_to_payment_cr
+      - name: session_to_payment_cr
+
+
+  - name: metrics_product_conversion_daily
+    description: >
+      Daily product conversion and monetization metrics.
+      Grain: 1 row per product_id × activity_date.
+      Derived from fct_product_daily_activity.
+
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [product_id, activity_date]
+
+    columns:
+      - name: activity_date
+        description: "Metric date."
+        tests:
+          - not_null
+
+      - name: product_id
+        description: "Product identifier."
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_products')
+              field: product_id
+
+      - name: views_count
+        tests: [not_null]
+
+      - name: add_to_cart_count
+        tests: [not_null]
+
+      - name: payments_count
+        tests: [not_null]
+
+      - name: revenue_amount
+        tests: [not_null]
+
+      - name: refunded_amount
+        tests: [not_null]
+
+      - name: view_to_cart_cr
+        description: "add_to_cart_count / views_count (NULL if views_count=0)."
+
+      - name: cart_to_payment_cr
+        description: "payments_count / add_to_cart_count (NULL if add_to_cart_count=0)."
+
+      - name: view_to_payment_cr
+        description: "payments_count / views_count (NULL if views_count=0)."
+
+      - name: avg_order_value
+        description: "revenue_amount / payments_count (NULL if payments_count=0)."
+
+      - name: refund_rate
+        description: "refunded_amount / revenue_amount (NULL if revenue_amount=0)."
+
+
+  - name: metrics_retention_cohorts
+    description: >
+      User retention cohorts.
+      Grain: 1 row per cohort_date × cohort_age_days.
+      Cohort is based on dim_users.first_seen_date, activity from fct_user_daily_activity where is_active=true.
+
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [cohort_date, cohort_age_days]
+
+    columns:
+      - name: cohort_date
+        description: "Cohort start date (user first_seen_date)."
+        tests:
+          - not_null
+
+      - name: cohort_age_days
+        description: "Days since cohort_date (0 = same day)."
+        tests:
+          - not_null
+
+      - name: retained_users
+        description: "Distinct users active on cohort_date + cohort_age_days."
+        tests:
+          - not_null
+
+      - name: cohort_sizes
+        description: "Total users in the cohort."
+        tests:
+          - not_null
+
+      - name: retention_rate
+        description: "retained_users / cohort_sizes."
+
+  - name: metrics_repeat_retention_cohorts
+    description: >
+      Repeat purchase retention cohorts.
+      Cohort is defined by the week of first purchase (cohort_week).
+      Retention is measured as share of users who make a 2nd purchase within N days (horizon).
+      Grain: 1 row per cohort_week × cohort_age_days (horizon_day).
+
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [cohort_week, cohort_age_days]
+
+    columns:
+      - name: cohort_week
+        description: "Week bucket of the user's first purchase timestamp."
+        tests:
+          - not_null
+
+      - name: cohort_age_days
+        description: "Horizon window in days (e.g., 1/7/14/21/30/60)."
+        tests:
+          - not_null
+          - accepted_values:
+              values: [1, 7, 14, 21, 30, 60]
+
+      - name: retained_users
+        description: "Users with 2nd purchase within cohort_age_days."
+        tests:
+          - not_null
+
+      - name: cohort_size
+        description: "Number of users in the cohort."
+        tests:
+          - not_null
+
+      - name: retention_rate
+        description: "retained_users / cohort_size."
+
+
+  - name: metrics_unit_economics_daily
+    description: >
+      Daily unit economics metrics.
+      Grain: 1 row per activity_date.
+      Derived from fct_user_daily_activity.
+
+    columns:
+      - name: activity_date
+        description: "Metric date."
+        tests:
+          - not_null
+          - unique
+
+      - name: active_users
+        description: "Distinct users active on the day."
+        tests:
+          - not_null
+
+      - name: paying_users
+        description: "Distinct users with succeeded payments on the day."
+        tests:
+          - not_null
+
+      - name: revenue_amount
+        description: "Total succeeded revenue on the day."
+        tests:
+          - not_null
+
+      - name: arpu
+        description: "Average revenue per active user."
+
+      - name: arppu
+        description: "Average revenue per paying user."
+
+      - name: payer_rate
+        description: "paying_users / active_users."
+
+
+  - name: metrics_dau_wau_mau
+    description: >
+      Daily active users (DAU), weekly active users (WAU),
+      monthly active users (MAU) and stickiness ratios.
+      Grain: 1 row per activity_date.
+
+    columns:
+      - name: activity_date
+        description: "Metric date."
+        tests:
+          - not_null
+          - unique
+
+      - name: dau
+        description: "Daily active users."
+        tests:
+          - not_null
+
+      - name: wau
+        description: "7-day rolling active users."
+        tests:
+          - not_null
+
+      - name: mau
+        description: "30-day rolling active users."
+        tests:
+          - not_null
+
+      - name: wau_dau_ratio
+        description: "WAU / DAU."
+
+      - name: mau_dau_ratio
+        description: "MAU / DAU."
+
+
+  - name: metrics_ltv_cohort_curve
+    description: >
+      Cohort LTV curve based on cumulative revenue per user.
+      Cohort is defined by dim_users.first_seen_date.
+      Grain: 1 row per cohort_date × cohort_age_days.
+
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [cohort_date, cohort_age_days]
+
+    columns:
+      - name: cohort_date
+        description: "Cohort start date (user first_seen_date)."
+        tests:
+          - not_null
+
+      - name: cohort_age_days
+        description: "Days since cohort_date."
+        tests:
+          - not_null
+
+      - name: cohort_size
+        description: "Number of users in the cohort."
+        tests:
+          - not_null
+
+      - name: revenue_amount
+        description: "Total revenue generated by the cohort at this age (daily revenue summed across users)."
+        tests:
+          - not_null
+
+      - name: cumulative_revenue
+        description: "Cumulative revenue for the cohort up to cohort_age_days."
+        tests:
+          - not_null
+
+      - name: ltv
+        description: "cumulative_revenue / cohort_size."

@@ -1,0 +1,8 @@
+version: 2
+
+sources:
+  - name: landing
+    schema: landing
+    tables:
+      - name: stripe_events_raw
+      - name: clickstream_events_raw

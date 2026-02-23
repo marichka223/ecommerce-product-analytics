@@ -1,0 +1,10 @@
+scripts/
+notebooks/
+.venv/
+.vscode/
+logs/
+duckdb/
+data/
+target/
+dbt_packages/
+*.duckdb
